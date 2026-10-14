@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elimination Spin Wheel</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1e1e24;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        h1 {
+            margin-bottom: 5px;
+            color: #f1c40f;
+        }
+
+        .container {
+            position: relative;
+            margin: 20px;
+        }
+
+        /* The Ticker / Pointer Arrow */
+        .pointer {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-top: 25px solid #e74c3c;
+            z-index: 10;
+        }
+
+        canvas {
+            background: #fff;
+            border-radius: 50%;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+            border: 8px solid #34495e;
+        }
+
+        button {
+            background: #2ecc71;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: white;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
+            transition: all 0.2s ease;
+            margin-top: 15px;
+        }
+
+        button:hover {
+            background: #27ae60;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background: #7f8c8d;
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #result {
+            margin-top: 20px;
+            font-size: 1.4rem;
+            font-weight: 600;
+            min-height: 35px;
+            color: #f1c40f;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Elimination Wheel</h1>
+    <div id="result">Press Spin to start!</div>
+
+    <div class="container">
+        <div class="pointer"></div>
+        <canvas id="wheelCanvas" width="400" height="400"></canvas>
+    </div>
+
+    <button id="spinBtn" onclick="spin()">SPIN</button>
+
+    <script>
+        const canvas = document.getElementById('wheelCanvas');
+        const ctx = canvas.getContext('2d');
+        const spinBtn = document.getElementById('spinBtn');
+        const resultDiv = document.getElementById('result');
+
+        // 8 sectors marked A to H (Assuming H to complete 8 sectors, A-F is 6)
+        let sectors = [
+            { label: 'A', color: '#e74c3c' },
+            { label: 'B', color: '#3498db' },
+            { label: 'C', color: '#9b59b6' },
+            { label: 'D', color: '#e67e22' },
+            { label: 'E', color: '#1abc9c' },
+            { label: 'F', color: '#f1c40f' },
+            { label: 'G', color: '#2ecc71' },
+            { label: 'H', color: '#34495e' }
+        ];
+
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = canvas.width / 2;
+
+        let currentAngle = 0; 
+        let isSpinning = false;
+
+        // Draw the initial state of the wheel
+        drawWheel();
+
+        function drawWheel() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const numSectors = sectors.length;
+
+            if (numSectors === 0) {
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 20px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('All sectors eliminated!', centerX, centerY);
+                return;
+            }
+
+            const arcSize = (2 * Math.PI) / numSectors;
+
+            sectors.forEach((sector, i) => {
+                const angle = currentAngle + (i * arcSize);
+                
+                // Draw slice
+                ctx.beginPath();
+                ctx.fillStyle = sector.color;
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, angle, angle + arcSize);
+                ctx.lineTo(centerX, centerY);
+                ctx.fill();
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Draw Text labels
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate(angle + arcSize / 2);
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 24px sans-serif';
+                ctx.textAlign = 'right';
+                ctx.fillText(sector.label, radius - 30, 10);
+                ctx.restore();
+            });
+
+            // Center Pin Accent
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, 20, 0, 2 * Math.PI);
+            ctx.fillStyle = '#fff';
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        function spin() {
+            if (isSpinning || sectors.length === 0) return;
+
+            isSpinning = true;
+            spinBtn.disabled = true;
+            resultDiv.innerText = "Spinning...";
+
+            // Random spin metrics
+            const spinDuration = 4000; // 4 seconds
+            const startTimestamp = performance.now();
+            
+            // Randomize how many full rotations it makes + extra distance
+            const baseRotations = 5 + Math.random() * 5; 
+            const totalRotationAngle = baseRotations * 2 * Math.PI;
+            const startingAngle = currentAngle;
+
+            function animate(timestamp) {
+                const elapsed = timestamp - startTimestamp;
+                const progress = Math.min(elapsed / spinDuration, 1);
+
+                // Cubic ease-out deceleration curve
+                const easeOut = 1 - Math.pow(1 - progress, 3);
+                
+                currentAngle = startingAngle + (easeOut * totalRotationAngle);
+                
+                drawWheel();
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    finalizeSpin();
+                }
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        function finalizeSpin() {
+            isSpinning = false;
+            const numSectors = sectors.length;
+            const arcSize = (2 * Math.PI) / numSectors;
+
+            // Normalize final angle between 0 and 2*PI
+            let normalizedAngle = currentAngle % (2 * Math.PI);
+            if (normalizedAngle < 0) normalizedAngle += (2 * Math.PI);
+
+            // The ticker pointer is at the top (-90 degrees or 1.5 * PI)
+            // We calculate backwards to see which slice landed under the top pointer
+            let pointerAngle = (1.5 * Math.PI) - normalizedAngle;
+            if (pointerAngle < 0) pointerAngle += (2 * Math.PI);
+
+            const winningIndex = Math.floor(pointerAngle / arcSize) % numSectors;
+            const winner = sectors[winningIndex];
+
+            // Display result
+            resultDiv.innerHTML = `Landed on: <strong style="color: ${winner.color}">${winner.label}</strong> (Eliminated!)`;
+
+            // Eliminate the sector
+            sectors.splice(winningIndex, 1);
+
+            // Re-enable UI elements
+            if (sectors.length > 0) {
+                spinBtn.disabled = false;
+                // Soft refresh layout to mirror removal
+                setTimeout(() => { drawWheel(); }, 1200); 
+            } else {
+                setTimeout(() => {
+                    drawWheel();
+                    resultDiv.innerText = "Game Over! All items eliminated.";
+                }, 1200);
+            }
+        }
+    </script>
+</body>
+</html>
